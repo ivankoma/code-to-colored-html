@@ -19,8 +19,6 @@
     textarea{width:100%;min-height:180px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:13px;line-height:1.5;padding:10px;border:1px solid #e1e4e8;border-radius:8px;background:#fff;color:#111}
     .preview{overflow:auto;border-radius:8px;border:1px solid #e1e4e8;margin-top:8px}
     pre{margin:0}
-    .no-token-bg code.hljs,.no-token-bg code.hljs *{background:transparent!important}
-    .no-token-bg code.hljs{padding:0!important;line-height:1!important}
     .controls-justified{justify-content:space-between;width:100%}
     .copy-wrap{text-align:left;margin-top:10px}
   </style>
@@ -73,11 +71,6 @@
             <option value="base16/solarized-light">base16/solarized-light</option>
             <option value="base16/solarized-dark">base16/solarized-dark</option>
           </select>
-
-          <label class="inline" style="gap:6px">
-            <input type="checkbox" id="lnToggle" />
-            Line numbers
-          </label>
         </div>
       </div>
     </section>
@@ -92,7 +85,7 @@
         <div class="inline controls-justified">
           <div class="inline">
             <h2 style="margin:0">Preview</h2>
-            <small class="muted">(Outer box background only; no per-line background; tight line spacing)</small>
+            <small class="muted">(This preview shows the exact HTML that is generated below.)</small>
           </div>
         </div>
         <div id="preview" class="preview"></div>
@@ -111,7 +104,7 @@
     </section>
   </main>
 
-  <footer><small class="muted">Export is body-only and standalone. Preview uses official Highlight.js for convenience.</small></footer>
+  <footer><small class="muted">Export is body-only and standalone. Preview renders exactly the generated HTML.</small></footer>
 
   <script>
     "use strict";
@@ -123,7 +116,6 @@
       out: document.getElementById("htmlOut"),
       preview: document.getElementById("preview"),
       copyBtn: document.getElementById("copyBtn"),
-      lnToggle: document.getElementById("lnToggle"),
       themeLink: document.getElementById("hljsTheme"),
     };
 
@@ -144,24 +136,9 @@
 
     function escapeHtml(s){ return s.replaceAll(/&/g,"&amp;").replaceAll(/</g,"&lt;").replaceAll(/>/g,"&gt;"); }
 
-    function injectInlineNumbers(highlightedHTML, codeText){
-      const textLines = codeText.replace(/\r\n?/g,"\n").split("\n");
-      const htmlLines = highlightedHTML.replace(/\r\n?/g,"\n").split("\n");
-      const n = textLines.length;
-      const rows = new Array(n);
-      for (let i = 0; i < n; i++) {
-        const body = htmlLines[i] !== undefined ? htmlLines[i] : "";
-        rows[i] = `<span style="opacity:.6;user-select:none;-webkit-user-select:none">${i+1}</span>\u00A0${body}`;
-      }
-      return rows.join("\n");
-    }
-
-    function getHighlightedInner(codeText, lang, withLineNumbers){
-      let inner = "";
-      try { inner = hljs.highlight(codeText, { language: lang, ignoreIllegals: true }).value; }
-      catch { inner = escapeHtml(codeText); }
-      if (withLineNumbers) inner = injectInlineNumbers(inner, codeText);
-      return inner;
+    function getHighlightedInner(codeText, lang){
+      try { return hljs.highlight(codeText, { language: lang, ignoreIllegals: true }).value; }
+      catch { return escapeHtml(codeText); }
     }
 
     function measureThemeBackground(lang, inner){
@@ -212,27 +189,25 @@
 
     function buildBodyOnlySnippet(bgColor, baseColor, inner){
       const codeStyle = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:13px;white-space:pre;line-height:1;color:"+baseColor+";background-color:transparent";
-      const preStyle  = "background-color:"+bgColor+";padding:12px;overflow:auto;margin:0";
+      const preStyle  = "background-color:"+bgColor+";padding:12px;overflow:auto;margin:0;line-height:1";
       return '<pre style="'+preStyle+'"><code style="'+codeStyle+'">'+inner+"</code></pre>";
-    }
-
-    function buildPreviewHtml(bg, lang, inner){
-      return `<pre class="no-token-bg" style="padding:12px;overflow:auto;margin:0;background-color:${bg}"><code class="hljs language-${lang}" style="font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:13px;white-space:pre;line-height:1;">${inner}</code></pre>`;
     }
 
     function updatePreviewAndOutput(){
       updateThemeLink(() => {
         const lang = els.lang.value;
         const codeText = els.source.value || "";
-        const withLn = els.lnToggle.checked;
-        const inner = getHighlightedInner(codeText, lang, withLn);
+        const inner = getHighlightedInner(codeText, lang);
         const themeBG = measureThemeBackground(lang, inner);
-        const previewHtml = buildPreviewHtml(themeBG, lang, inner);
-        els.preview.innerHTML = previewHtml;
-        const codeEl = els.preview.querySelector("code");
-        const clonedCode = cloneWithInlineStyles(codeEl);
-        const baseColor = getComputedStyle(codeEl).color || "#111";
+        const tmp = document.createElement("code");
+        tmp.className = "hljs language-" + lang;
+        tmp.style.cssText = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:13px;white-space:pre;line-height:1;";
+        tmp.innerHTML = inner;
+        document.body.appendChild(tmp);
+        const clonedCode = cloneWithInlineStyles(tmp);
+        document.body.removeChild(tmp);
         const snippet = buildBodyOnlySnippet(themeBG, baseColor, clonedCode.innerHTML);
+        els.preview.innerHTML = snippet;
         els.out.value = snippet;
       });
     }
@@ -240,7 +215,6 @@
     function attachEventHandlers(){
       els.lang.addEventListener("change", updatePreviewAndOutput);
       els.theme.addEventListener("change", updatePreviewAndOutput);
-      els.lnToggle.addEventListener("change", updatePreviewAndOutput);
       els.source.addEventListener("input", updatePreviewAndOutput);
       els.copyBtn.addEventListener("click", async () => {
         try {
@@ -258,7 +232,7 @@
     function setStarterExample(){
       els.source.value = `#include <iostream>
 int main() {
-  std::cout << "Hello, world!\\n";
+  std::cout << "Hello, world!\n";
   return 0;
 }`;
     }
