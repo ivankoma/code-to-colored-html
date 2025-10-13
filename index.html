@@ -204,6 +204,7 @@
         tmp.style.cssText = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;font-size:13px;white-space:pre;line-height:1;";
         tmp.innerHTML = inner;
         document.body.appendChild(tmp);
+        const baseColor = getComputedStyle(tmp).color || "#111";
         const clonedCode = cloneWithInlineStyles(tmp);
         document.body.removeChild(tmp);
         const snippet = buildBodyOnlySnippet(themeBG, baseColor, clonedCode.innerHTML);
