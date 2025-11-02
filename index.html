@@ -20,7 +20,7 @@
     .preview{overflow:auto;border-radius:8px;border:1px solid #e1e4e8;margin-top:8px}
     pre{margin:0}
     .controls-justified{justify-content:space-between;width:100%}
-    .copy-wrap{text-align:left;margin-top:10px}
+    .copy-wrap{text-align:left;margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
   </style>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/cpp.min.js"></script>
@@ -70,6 +70,7 @@
             <option value="gradient-dark">gradient-dark</option>
             <option value="base16/solarized-light">base16/solarized-light</option>
             <option value="base16/solarized-dark">base16/solarized-dark</option>
+            <option value="e-ink">e-ink</option>
           </select>
         </div>
       </div>
@@ -99,6 +100,7 @@
         <textarea id="htmlOut" readonly spellcheck="false"></textarea>
         <div class="copy-wrap">
           <button id="copyBtn" type="button">Copy Body HTML</button>
+          <button id="printBtn" type="button">Print</button>
         </div>
       </div>
     </section>
@@ -116,18 +118,52 @@
       out: document.getElementById("htmlOut"),
       preview: document.getElementById("preview"),
       copyBtn: document.getElementById("copyBtn"),
-      themeLink: document.getElementById("hljsTheme"),
+      printBtn: document.getElementById("printBtn"),
+      themeLink: document.getElementById("hljsTheme")
     };
+
+    const CUSTOM_HLJS_THEMES = {
+      "e-ink": `
+code.hljs{background:#ffffff;color:#000000}
+.hljs-comment,.hljs-quote{color:#888888;font-style:italic}
+.hljs-string,.hljs-template-tag,.hljs-template-variable,.hljs-regexp,.hljs-subst{color:#777777}
+.hljs-keyword,.hljs-operator,.hljs-builtin-name,.hljs-built_in,.hljs-type,.hljs-title,.hljs-section,.hljs-name,.hljs-tag,.hljs-meta,.hljs-symbol,.hljs-params,.hljs-variable,.hljs-property,.hljs-attr,.hljs-attribute,.hljs-selector-id,.hljs-selector-class,.hljs-function{font-weight:700;color:#000000}
+.hljs-strong{font-weight:700;color:#000000}
+.hljs-emphasis{font-style:italic}
+.hljs-addition{color:#888888;font-weight:700}
+.hljs-deletion{color:#bbbbbb;text-decoration:line-through}
+      `.trim()
+    };
+
+    function ensureCustomTheme(name){
+      const id = "hljsCustomTheme";
+      const existing = document.getElementById(id);
+      if (existing) existing.remove();
+      if (name && CUSTOM_HLJS_THEMES[name]){
+        const style = document.createElement("style");
+        style.id = id;
+        style.textContent = CUSTOM_HLJS_THEMES[name];
+        els.themeLink.insertAdjacentElement("afterend", style);
+      }
+    }
 
     const HLJS_CDN = "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/";
     const defaultThemeByLang = { cpp: "vs", python: "atom-one-light", bash: "github", dos: "github", yaml: "github" };
 
     function buildThemeHref(name){ return `${HLJS_CDN}${name}.min.css`; }
     function currentThemeName(){ return els.theme.value === "auto" ? (defaultThemeByLang[els.lang.value] || "default") : els.theme.value; }
+
     function updateThemeLink(done){
       const name = currentThemeName();
-      const href = buildThemeHref(name);
       const link = els.themeLink;
+      if (CUSTOM_HLJS_THEMES[name]){
+        ensureCustomTheme(name);
+        link.dataset.current = name;
+        if (typeof done === "function") done();
+        return;
+      }
+      ensureCustomTheme(null);
+      const href = buildThemeHref(name);
       if (link.getAttribute("href") === href) { link.dataset.current = name; if (typeof done === "function") done(); return; }
       link.onload = () => { link.dataset.current = name; if (typeof done === "function") done(); };
       link.onerror = () => { if (typeof done === "function") done(); };
@@ -213,6 +249,33 @@
       });
     }
 
+    function openPrintTab(){
+      const snippet = els.out.value || "";
+      const html = `
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Print Code</title>
+<style>
+  html,body{height:100%}
+  body{margin:0;background:#ffffff}
+  .wrap{padding:24px}
+  @media print{.wrap{padding:0}}
+  pre,code{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
+</style>
+</head>
+<body onload="window.print()">
+  <div class="wrap">${snippet}</div>
+</body>
+</html>`;
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
+
     function attachEventHandlers(){
       els.lang.addEventListener("change", updatePreviewAndOutput);
       els.theme.addEventListener("change", updatePreviewAndOutput);
@@ -228,12 +291,13 @@
           document.execCommand("copy");
         }
       });
+      els.printBtn.addEventListener("click", openPrintTab);
     }
 
     function setStarterExample(){
       els.source.value = `#include <iostream>
 int main() {
-  std::cout << "Hello, world!\n";
+  std::cout << "Hello, world!\\n";
   return 0;
 }`;
     }
